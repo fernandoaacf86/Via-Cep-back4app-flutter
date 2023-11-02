@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:via_cep/repository/back4app_repository.dart';
+import 'package:via_cep/shared/widgets/floating_action_button_widget.dart';
 import '../model/via_cep_model.dart';
-import '../repository/via_cep_repository.dart';
-import '../shared/widgets/buttons_widgets.dart';
 import '../shared/widgets/listtile_widget.dart';
 
 class HomePage extends StatefulWidget {
@@ -15,114 +15,49 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final TextEditingController cepController = TextEditingController();
   ViaCEPModel viaCEPModel = ViaCEPModel.construtorVazio();
-  Back4AppRepository back4appRepository = Back4AppRepository();
-
-  List<ViaCEPModel> lista = [];
-
-  Future<void> buscarCep(String cep) async {
-    viaCEPModel = await ViaCepRepository().fetchCEP(cep);
-    lista = await back4appRepository.obterCEPsSalvos();
-    setState(() {});
-  }
-
-  Future<void> salvarNoBack4App(ViaCEPModel viaCEPModel) async {
-    back4appRepository.salvarCEPs(viaCEPModel);
-    lista = await back4appRepository.obterCEPsSalvos();
-    setState(() {});
-  }
-
-  Future<void> carregarDados() async {
-    lista = await back4appRepository.obterCEPsSalvos();
-    setState(() {});
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    carregarDados();
-  }
 
   @override
   Widget build(BuildContext context) {
+    final dataBack4App = Provider.of<Back4AppRepository>(context);
+    print(dataBack4App.listaDeDados);
+    // Carregue os dados do banco de dados no início do aplicativo
+    Future<void> loadData() async {
+      await dataBack4App.obterCEPsSalvos();
+    }
+
+    // Verifique se os dados já foram carregados e evite recarregar
+    if (dataBack4App.listaDeDados.isEmpty) {
+      loadData();
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('ViaCep App'),
       ),
       body: SafeArea(
         child: ListView.builder(
-          itemCount: lista.length,
+          itemCount: dataBack4App.listaDeDados.length,
           itemBuilder: (
             BuildContext context,
             int index,
           ) {
             return Dismissible(
               direction: DismissDirection.horizontal,
-              key: ValueKey(lista[index].cep),
+              key: ValueKey(dataBack4App.listaDeDados[index].cep),
               child: ListTileWidget(
-                viaCEPModel: lista[index],
+                viaCEPModel: dataBack4App.listaDeDados[index],
               ),
               onDismissed: (direction) async {
-                back4appRepository.deletarCepPorCEP(lista[index].cep);
+                dataBack4App.deletarCEP(
+                    dataBack4App.listaDeDados[index].cep, context);
               },
             );
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (_) {
-              return AlertDialog(
-                title: const Text('Buscar CEP'),
-                content: Wrap(
-                  children: [
-                    TextField(
-                      maxLength: 8,
-                      keyboardType: TextInputType.number,
-                      controller: cepController,
-                      decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: "Ex: 11111222"),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          ButtonsWidgets(
-                              onPressed: () async {
-                                await buscarCep(cepController.text);
-                                if (viaCEPModel.uf.isNotEmpty) {
-                                  //se o cep não existir na lista atual
-                                  if (lista.any((element) =>
-                                      element.cep == viaCEPModel.cep)) {
-                                  } else {
-                                    await salvarNoBack4App(viaCEPModel);
-                                    setState(() {
-                                      lista;
-                                    });
-                                  }
-                                }
-                                Navigator.pop(context);
-                              },
-                              text: 'Pesquisar'),
-                          ButtonsWidgets(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                cepController.text = "";
-                              },
-                              text: 'Cancelar'),
-                        ],
-                      ),
-                    )
-                  ],
-                ),
-              );
-            },
-          );
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: FloatingActionButtonWidget(
+        back4appRepository: dataBack4App,
+        cepController: cepController,
+        viaCEPModel: viaCEPModel,
       ),
     );
   }

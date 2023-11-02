@@ -1,9 +1,15 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:via_cep/via_cep_app.dart';
 import '../model/via_cep_model.dart';
 
-class Back4AppRepository {
+class Back4AppRepository extends ChangeNotifier {
+  final List<ViaCEPModel> listaDeDados = [];
   final _dio = Dio();
+
   Back4AppRepository() {
     _dio.options.headers['X-Parse-Application-Id'] =
         dotenv.env['BACK4APPAPPLICATIONID'];
@@ -13,40 +19,47 @@ class Back4AppRepository {
     _dio.options.baseUrl = 'https://parseapi.back4app.com/classes';
   }
 
-  //recupera CEPsCadastrados -- FUNCIONANDO
-  Future<List<ViaCEPModel>> obterCEPsSalvos() async {
+  //recupera CEPsCadastrados e retorna uma a lista -- FUNCIONANDO
+  Future<void> obterCEPsSalvos() async {
+    listaDeDados.clear();
     String url = '/CepUsuario';
     final response = await _dio.get(url);
     if (response.statusCode == 200) {
       final List<dynamic> results = response.data['results'];
-      List<ViaCEPModel> cepList = [];
 
       for (var result in results) {
         ViaCEPModel viaCEPModel = ViaCEPModel.fromJson(result);
-        cepList.add(viaCEPModel);
+        listaDeDados.add(viaCEPModel);
       }
-
-      return cepList;
-    } else {
-      return [
-        ViaCEPModel.construtorError('Não foi possivel acessar o servidor.')
-      ];
     }
+    notifyListeners();
   }
 
-  Future<void> salvarCEPs(ViaCEPModel viaCEPModel) async {
+  Future<void> salvarCEP(ViaCEPModel viaCEPModel, BuildContext context) async {
     String url = '/CepUsuario';
 
-    if (viaCEPModel.uf.isNotEmpty) {
+    if (viaCEPModel.uf.isNotEmpty && !verificaDuplicidade(viaCEPModel)) {
       var data = viaCEPModel.toJson();
 
       try {
         await _dio.post(url, data: data);
-      } catch (e) {}
+        obterCEPsSalvos();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dados salvos com sucesso!'),
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dados não foram salvos. $e'),
+          ),
+        );
+      }
     }
   }
 
-  Future<void> deletarCepPorCEP(String cep) async {
+  Future<void> deletarCEP(String cep, BuildContext context) async {
     String url = '/CepUsuario';
 
     try {
@@ -59,11 +72,19 @@ class Back4AppRepository {
 
         // Agora você pode excluir o objeto usando o objectId obtido
         await _dio.delete('$url/$objectId');
-      } else {}
-    } catch (e) {}
+        obterCEPsSalvos();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Dados não foram deletados. $e'),
+        ),
+      );
+    }
   }
 
-  Future<void> atualizarCep({
+  Future<void> atualizarCEP({
+    required BuildContext context,
     required viaCEPModel,
     required viaCEPModelNovo,
   }) async {
@@ -77,14 +98,30 @@ class Back4AppRepository {
     //isolando o objectId do cep no back4app
     final String objectId = results[0]['objectId'];
 
-    if (viaCEPModel.uf.isNotEmpty) {
+    if (viaCEPModel.uf.isNotEmpty && verificaDuplicidade(viaCEPModel)) {
       try {
         await _dio.put("$url/$objectId", data: viaCEPModelNovo);
+        obterCEPsSalvos();
       } catch (e) {
-        print(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Não foi posível atualizar os dados. $e'),
+          ),
+        );
       }
     }
   }
 
-  // Future<Void> salvarCep(ViaCEPModel viaCEPModel) {}
+  List<ViaCEPModel> retornaLista() {
+    return listaDeDados;
+  }
+
+  bool verificaDuplicidade(ViaCEPModel viaCEPModel) {
+    for (var element in listaDeDados) {
+      if (element.cep == viaCEPModel.cep) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

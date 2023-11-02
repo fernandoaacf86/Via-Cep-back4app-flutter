@@ -1,4 +1,4 @@
-// ignore_for_file: public_member_api_docs, sort_constructors_first
+// ignore_for_file: public_member_api_docs, sort_constructors_first, use_build_context_synchronously
 import 'package:flutter/material.dart';
 
 import 'package:via_cep/model/via_cep_model.dart';
@@ -22,9 +22,7 @@ class CepPage extends StatefulWidget {
 
 class _CepPageState extends State<CepPage> {
   final Back4AppRepository back4appRepository = Back4AppRepository();
-
   final TextEditingController cepController = TextEditingController();
-
   final ViaCepRepository viaCepRepository = ViaCepRepository();
 
   //Modelo usado para atualizar novos dados
@@ -126,12 +124,13 @@ class _CepPageState extends State<CepPage> {
                                                     onPressed: () async {
                                                       viaCEPModelConst =
                                                           await viaCepRepository
-                                                              .fetchCEP(
+                                                              .buscarCEP(
                                                                   cepController
                                                                       .text);
                                                       if (viaCEPModelConst
                                                           .uf.isNotEmpty) {
-                                                        back4appRepository.atualizarCep(
+                                                        back4appRepository.atualizarCEP(
+                                                            context: context,
                                                             viaCEPModel: widget
                                                                 .viaCEPModel,
                                                             viaCEPModelNovo:
